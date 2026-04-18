@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="투표 계산기">
-<link rel="apple-touch-icon" href="icon.png">
-	
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="투표 계산기">
+    <link rel="apple-touch-icon" href="icon.png">
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>투표용지 교부매수 계산기</title>
@@ -19,6 +19,25 @@
         :root { --bg: #f4f4f5; --text: #18181b; }
         body { font-family: -apple-system, "SF Pro Text", "Apple SD Gothic Neo", sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 10px; line-height: 1.5; -webkit-text-size-adjust: none; }
         header { text-align: center; padding: 6px 0; background: white; border-radius: 12px; margin-bottom: 3px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 내부 앱 영역만 스크롤 */
+#app {
+  height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+
         h1 { font-size: 1.2rem; margin: 0; color: #1e40af; font-weight: 900; }
         
         /* 카드 영역 보강 */
@@ -234,6 +253,16 @@
     </div>
     <button id="reportBtn" onclick="toggleReport()"     style="width:100%; background:#0ea5e9; color:white; padding:8px 10px; border:none; border-radius:10px; margin-bottom:8px;">    📊 투표록 2면 작성자료 열기</button>
     <div id="reportArea" style="display:none; margin-top:1px;"></div>
+</div>
+
+<div id="exitModal" style="display:none">
+  <div class="modal-box">
+    <h3>앱을 종료하시겠습니까?</h3>
+
+    <button onclick="exitSave()">저장 후 종료</button>
+    <button onclick="exitNoSave()">종료</button>
+    <button onclick="closeExit()">취소</button>
+  </div>
 </div>
 
 <script>
@@ -1546,37 +1575,59 @@ function validateDamageInput(inputEl) {
     return true;
 }
 
-// ===== 뒤로가기 제어 =====
-let exitConfirmed = false;
-// 초기 히스토리 2번 쌓기
-history.pushState(null, null, location.href);
-history.pushState(null, null, location.href);
+const AppState = {
+  current: "home",
+  history: ["home"]
+};
+
+function go(state) {
+  AppState.history.push(state);
+  AppState.current = state;
+  render();
+  pushFakeHistory();
+}
+
+function back() {
+  if (AppState.history.length > 1) {
+    AppState.history.pop();
+    AppState.current = AppState.history.at(-1);
+    render();
+    pushFakeHistory();
+  } else {
+    showExitDialog();
+  }
+}
+
+function pushFakeHistory() {
+  history.pushState({ page: AppState.current }, "");
+}
 
 window.addEventListener("popstate", function () {
-
-    if (exitConfirmed) return;
-
-    const exit = confirm("앱을 종료하시겠습니까?");
-
-    if (!exit) {
-        // 뒤로가기 막기 (핵심)
-        history.pushState(null, null, location.href);
-        return;
-    }
-
-    const save = confirm("현재 값을 저장하시겠습니까?");
-
-    if (save) {
-        saveData();
-        saveToGoogle();
-        alert("저장 완료 후 종료됩니다.");
-    }
-
-    exitConfirmed = true;
-
-    // 실제 종료 허용 (뒤로 2번)
-    history.go(-2);
+  back(); // 브라우저 뒤로가기 → 앱 뒤로가기
 });
+function showExitDialog() {
+  document.getElementById("exitModal").style.display = "flex";
+}
+
+function closeExit() {
+  document.getElementById("exitModal").style.display = "none";
+}
+
+function exitSave() {
+  saveData();
+  saveToGoogle();
+  exitConfirmed = true;
+  history.go(-999); // 실제 종료 유도
+}
+
+function exitNoSave() {
+  exitConfirmed = true;
+  history.go(-999);
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js");
+}
 
 </script>
 
