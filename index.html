@@ -56,6 +56,21 @@
         .btn-copy { background: #1e40af; color: white; }
         .btn-reset { background: #64748b; color: white; }
 
+input[readonly]:not(.no-gray) {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border-color: #cbd5e1 !important;
+    cursor: not-allowed;
+}
+
+button:disabled {
+    background: #cbd5e1 !important;
+    color: #64748b !important;
+    cursor: not-allowed;
+    box-shadow: none !important;
+    opacity: 0.7;
+}
+
 .big-input {
     padding: 5px 3px !important;
     min-height: 30px;
@@ -144,7 +159,10 @@
 
     </select>
 
+
+
     <div id="preview" style="margin-top:8px; font-weight:bold;"></div>
+
 
 </div>
 
@@ -174,12 +192,20 @@
 ">
     ⚠️ 투표소가 변경되었습니다. 기본정보를 다시 불러오세요
 </div>
-    
+   
+<div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+ 
+    <button onclick="confirmSelection()" id="confirmBtn"
+        style="flex:0.8; padding:13px 10px; background:#10b981; color:white; border:none; border-radius:8px; font-weight:900;">
+        확정
+    </button>
 
 <button onclick="loadFromGoogle()" 
-    style="margin-top:6px; width:100%; padding:13px 10px; background:#6366f1; color:white;  border:none; border-radius:10px;margin-bottom: 8px;">
+    style="flex:2.3; margin-top:6px; width:100%; padding:13px 10px; background:#6366f1; color:white;  border:none; border-radius:10px;margin-bottom: 8px;">
     📥 기본 정보 불러오기
 </button>
+</div>
+
 <div id="boxInfo" style="
     margin-top:8px;
     font-weight:bold;
@@ -319,7 +345,7 @@ const electionDisplayMap = {
 </div>
 <div class="big-input-container">
     <div class="big-input-group">        <label>중복교부</label>  <input type="number" inputmode="numeric" id="DoubleOut_${index}" placeholder="0" oninput="calc(${index}); markChanged(); enforceNonNegative(this)">    </div>
-    <div class="big-input-group">         <label>오훼손 매수</label><input type="number" inputmode="numeric" id="dmg_${index}" onfocus="openDamageModal(${index})"  placeholder="0" readonly    onfocus="if(this.value=='0'||this.value=='')this.value='';"    oninput="calc(${index}); markChanged(); enforceNonNegative(this)"> </div>
+    <div class="big-input-group">         <label>오훼손 매수</label><input type="number" inputmode="numeric" id="dmg_${index}" onfocus="openDamageModal(${index})"  placeholder="0"  class="no-gray" readonly    onfocus="if(this.value=='0'||this.value=='')this.value='';"    oninput="calc(${index}); markChanged(); enforceNonNegative(this)"> </div>
 </div>
 
 
@@ -491,6 +517,10 @@ const electionDisplayMap = {
             try { localStorage.removeItem('votecalc_data'); } catch(e) {}
             clearChanged();
             location.reload();
+	localStorage.removeItem("selection_lock");
+ 	document.getElementById('sheetSelect').disabled = false;
+	document.getElementById('pollType').disabled = false;
+	document.getElementById('driveLink').readOnly = false;
         }
     }
 
@@ -556,7 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePollOptions(); 
     updatePreview(); // 처음 실행
     loadBoxInfo(); 
-    
+    applyLockState();
 });
 
 function initPrevState() {
@@ -690,6 +720,20 @@ function loadSelection() {
    if (savedLink) {
         document.getElementById('driveLink').value = savedLink; // ✅ 핵심
     }
+const lock = localStorage.getItem("selection_lock");
+
+if (lock) {
+    const data = JSON.parse(lock);
+
+    document.getElementById('sheetSelect').value = data.area;
+    document.getElementById('pollType').value = data.poll;
+    document.getElementById('driveLink').value = data.link;
+
+    document.getElementById('sheetSelect').disabled = true;
+    document.getElementById('pollType').disabled = true;
+    document.getElementById('driveLink').readOnly = true;
+}
+
 
     updatePreview();
 }
@@ -967,6 +1011,8 @@ document.getElementById('dmg_' + i).value = count;
         boxText += boxList.join(" / ");
 
         document.getElementById("boxInfo").innerText = boxText;
+	
+	saveData();
 
         alert("✅ 기본정보 불러오기 완료");
 
@@ -1544,6 +1590,73 @@ function validateDamageInput(inputEl) {
     }
 
     return true;
+}
+
+function confirmSelection() {
+    const btn = document.getElementById('confirmBtn');
+
+    // ❗ 이미 눌렸으면 재실행 방지
+    if (btn.disabled) return;
+
+    // 👉 즉시 비활성화 + 시각적 변경
+    btn.disabled = true;
+    btn.innerText = "확정됨";
+    
+    const area = document.getElementById('sheetSelect');
+    const poll = document.getElementById('pollType');
+    const link = document.getElementById('driveLink');
+
+    link.readOnly = true;
+    link.style.background = "#f1f5f9";
+    link.style.color = "#64748b";
+    link.style.border = "2px solid #cbd5e1";
+    link.style.cursor = "not-allowed";
+
+    // 1️⃣ 잠금
+    area.disabled = true;
+    poll.disabled = true;
+    link.readOnly = true;
+
+    // 2️⃣ 저장
+    const data = {
+        area: area.value,
+        poll: poll.value,
+        link: link.value,
+        locked: true
+    };
+
+    localStorage.setItem("selected_area", area.value);
+    localStorage.setItem("selected_poll", poll.value);
+    localStorage.setItem("drive_link", link.value);
+    localStorage.setItem("selection_lock", JSON.stringify(data));
+
+    loadFromGoogle();
+
+    alert("현재 읍면동 / 투표소 / 파일링크가 확정되었습니다 👍");
+}
+function applyLockState() {
+    const lock = localStorage.getItem("selection_lock");
+
+    if (!lock) return;
+
+    const data = JSON.parse(lock);
+
+    const area = document.getElementById('sheetSelect');
+    const poll = document.getElementById('pollType');
+    const link = document.getElementById('driveLink');
+    const btn = document.getElementById('confirmBtn');
+
+    // 🔒 다시 잠금 적용
+    area.value = data.area;
+    poll.value = data.poll;
+    link.value = data.link;
+
+    area.disabled = true;
+    poll.disabled = true;
+    link.readOnly = true;
+
+    btn.disabled = true;
+    btn.innerText = "확정됨";
 }
 
 </script>
