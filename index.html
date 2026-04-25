@@ -4,7 +4,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="교부매수 계산기">
+    <meta name="apple-mobile-web-app-title" content="투표 계산기">
     <link rel="apple-touch-icon" href="icon.png">
 
     <meta charset="UTF-8">
@@ -589,6 +589,24 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePreview(); // 처음 실행
     loadBoxInfo(); 
     applyLockState();
+
+	// 🔥 뒤로가기 방지 로직 추가
+    history.pushState(null, null, location.href);
+
+    let backPressedTime = 0;
+
+    window.addEventListener('popstate', function () {
+        const now = new Date().getTime();
+
+        if (now - backPressedTime < 2000) {
+            history.back();
+        } else {
+            alert("한 번 더 누르면 종료됩니다.");
+            backPressedTime = now;
+            history.pushState(null, null, location.href);
+        }
+    });
+
 });
 
 function initPrevState() {
