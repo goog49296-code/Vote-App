@@ -50,7 +50,9 @@
         footer { text-align: center; padding: 10px 0 10px 0; color: #94a3b8; font-size: 0.75rem; line-height: 1.6; }
 
         .footer-btns { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; background: rgba(244, 244, 245, 0.95); padding: 15px 10px; z-index: 1000; border-top: 1px solid #e2e8f0; padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
-        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    /*    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }  */
+	.btn-row {    display: flex;    flex-wrap: nowrap;       gap: 8px;     overflow-x: auto;       align-items: center;  }
+
         button { padding: 16px; border: none; border-radius: 12px; font-weight: 900; cursor: pointer; font-size: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); -webkit-tap-highlight-color: transparent; }
         .btn-save { background: #10b981; color: white; width: 100%; }
         .btn-copy { background: #1e40af; color: white; }
@@ -76,10 +78,15 @@ button:disabled {
     min-height: 30px;
 }
 
+
 .btn-row button {
-    padding: 15px 12px;   /* 핵심 */
-    font-size: 1rem;
-    border-radius: 12px;
+    flex: 1;              /* 핵심: 전부 같은 비율 */
+    white-space: nowrap;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-weight: 900;
+    border: none;
+    text-align: center;
 }
 
 .big-input input {
@@ -130,10 +137,13 @@ button:disabled {
 <body>
 
 
+<div id="mainScreen">
 
 <header>
     <h1>🗳️ 투표용지 교부매수 계산기</h1>
 </header>
+
+<div id="topControls">
 
 <div style="padding: 4px 10px;display:flex; gap:8px; align-items:center;">
     
@@ -222,11 +232,11 @@ button:disabled {
 <!-- 📷 사진 업로드 -->  
 <div class="photo-row">
     <input type="file" id="photoInput" accept="image/*" multiple style="display:none;" >
-    <button onclick="uploadPhoto()" style="display:none;" >📤 사진업로드</button>
+    <button onclick="uploadPhoto()"  style="display:none;">📤 사진업로드</button>
 </div>
 
 <!-- 🔍 사진 보기 -->
-<button onclick="viewPhotos()" style="display:none;  style="width:100%; margin-top:8px; background:#0ea5e9; color:white; padding:12px; border:none; border-radius:10px;">
+<button onclick="viewPhotos()" style="display:none; width:100%; margin-top:8px; background:#0ea5e9; color:white; padding:12px; border:none; border-radius:10px;">
     📷 사진보기
 </button>
 <div id="photoArea" style="margin-top:10px;"></div> 
@@ -257,16 +267,89 @@ button:disabled {
     <div class="btn-row">
         <button class="btn-save" onclick="saveToGoogle()"  >☁️ 구글시트 저장</button>
         <button class="btn-copy" onclick="copyAll()" style="display:none;">   📋 전체 결과 복사 </button>
+
+	<!-- 투표수 조회  style="display:none"  -->
+       <button onclick="goAdmin()"         style="  display:none;      background:#2563eb;         color:white;         border:none;        border-radius:8px;        font-weight:900;">         📊 전체 투표수    </button>
+
         <button class="btn-reset" onclick="resetAll()" >🔄 초기화</button>
     </div>
     <button id="reportBtn" onclick="toggleReport()"     style="width:100%; background:#0ea5e9; color:white; padding:14px 10px; border:none; border-radius:10px; margin-bottom:8px;">    📊 투표록 2면 작성자료 열기</button>
     <div id="reportArea" style="display:none; margin-top:1px;"></div>
 </div>
 
+</div>
+
+</div>
+
+
+<!-- 관리자 화면 (처음엔 숨김) -->
+
+
+<div id="adminScreen" style="display:none;">
+    <h1>🔒 전체 투표수 조회</h1>
+
+<div style="display:flex; gap:82px; align-items:center;">
+    <button onclick="goMain()">← 돌아가기</button>
+
+</div>
+
+
+<div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+
+    <label style="font-weight:900;">⏱️ 갱신간격</label>
+
+    <input type="number" id="refreshInterval"
+        min="10" max="60" value="30"
+        onchange="updateRefreshInterval()"
+        style="width:70px; padding:6px; border:1px solid #ccc; border-radius:6px; text-align:center;">
+
+    <span style="font-weight:700;">분</span>
+
+    <button onclick="loadAdminData()" 
+        style="margin-left:auto; padding:10px;
+        background:#2563eb;
+        color:white;
+        border:none;
+        border-radius:8px;
+        font-weight:900;">
+        📊 투표수 데이터 조회
+    </button>
+
+</div>
+
+
+    <div id="adminTable" style="margin-top:20px;"></div>
+
+    <div id="pollingDetailArea" style="margin-top:20px;"></div>
+
+</div>
+
+
 <script>
-const DEFAULT_DRIVE_LINK =
-"https://docs.google.com/spreadsheets/d/10sA6znSJ6meSx8WvKyOnySecxZlqt7FoIG6mqiSmFWQ/edit?usp=sharing";
-	
+
+
+let refreshTimer = null;
+
+function startAutoRefresh() {
+    const sec = Number(document.getElementById("refreshInterval").value) || 5;
+
+    if (refreshTimer) clearInterval(refreshTimer);
+
+    refreshTimer = setInterval(() => {
+        loadAdminData();
+    }, sec * 60 * 1000);
+}
+
+function stopAutoRefresh() {
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+}
+
+let originalData = {};   //변경된 값만 저장
+
+
 let isDataChanged = false;
 
 let isPhotoVisible = false;
@@ -278,7 +361,9 @@ let prevDriveLink = "";
 let prevArea = "";
 let prevPoll = "";
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVE87poMHjFBCCcIbfIYjxljOSMrASD0O5L3C27SXF8MBHopg_G4Q2gmJqvxdjZZaj_w/exec";
+const DEFAULT_DRIVE_LINK ="https://docs.google.com/spreadsheets/d/10sA6znSJ6meSx8WvKyOnySecxZlqt7FoIG6mqiSmFWQ/edit?usp=sharing";
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwboJHsfDOWB84FMjXja-F1TjnxlLwTIsilXv-L6MDGCLIRdApsaONntWEl5FQKd6dCIg/exec";
 
 const pollOptionsByArea = {
     "낭성면": ["투표소"],
@@ -295,7 +380,6 @@ const pollOptionsByArea = {
     "용암2동": ["제1투", "제2투", "제3투", "제4투", "제5투", "제6투", "제7투", "제8투", "제9투"],
     "용암1동": ["제1투", "제2투", "제3투", "제4투", "제5투", "제6투", "제7투", "제8투", "제9투", "제10투", "제11투", "제12투"],
 };
-
 
 const electionDisplayMap = {
        "교육감": "충청북도교육감",
@@ -525,7 +609,6 @@ const electionDisplayMap = {
  	document.getElementById('sheetSelect').disabled = false;
 	document.getElementById('pollType').disabled = false;
 	document.getElementById('driveLink').readOnly = false;
-			document.getElementById('driveLink').value = DEFAULT_DRIVE_LINK;
         }
     }
 
@@ -741,10 +824,10 @@ function loadSelection() {
     }
 
    if (savedLink) {
-    document.getElementById('driveLink').value = savedLink;
-} else {
-    document.getElementById('driveLink').value = DEFAULT_DRIVE_LINK;
-}
+         document.getElementById('driveLink').value = savedLink;
+      } else {
+          document.getElementById('driveLink').value = DEFAULT_DRIVE_LINK;
+      }
 const lock = localStorage.getItem("selection_lock");
 
 if (lock) {
@@ -853,21 +936,66 @@ function saveToGoogle() {
         damageNos: [],
        doubleOut:  [],
        returnKorea:  [],
-       dupSerial: [] 
+       dupSerial: [], 
+
+	changedIndex: []   //변경된 값만 저장
     };
 
     // 👉 선거 값 수집
-    elections.forEach((_, i) => {
-        data.start.push(Number(document.getElementById('curr_' + i).value || 0));
-        data.noBalsong.push(Number(document.getElementById('NoBalsong_' + i).value || 0));
-        data.geulJung.push(Number(document.getElementById('GeulJung_' + i).value || 0));
-        data.giveBack.push(Number(document.getElementById('GiveBack_' + i).value || 0));
-        data.dmg.push(Number(document.getElementById('dmg_' + i).value || 0));
-        data.damageNos.push(damageData[i] || "");
-        data.returnKorea.push(Number(document.getElementById('ReturnKorea_' + i).value || 0));
-        data.doubleOut.push(Number(document.getElementById('DoubleOut_' + i).value || 0));
-        data.dupSerial.push(Number(document.getElementById('dupSerial_' + i).value || 0));
-  });
+//변경된 값만 저장으로 삭제    elections.forEach((_, i) => {
+//변경된 값만 저장으로 삭제        data.start.push(Number(document.getElementById('curr_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.noBalsong.push(Number(document.getElementById('NoBalsong_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.geulJung.push(Number(document.getElementById('GeulJung_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.giveBack.push(Number(document.getElementById('GiveBack_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.dmg.push(Number(document.getElementById('dmg_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.damageNos.push(damageData[i] || "");
+//변경된 값만 저장으로 삭제        data.returnKorea.push(Number(document.getElementById('ReturnKorea_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.doubleOut.push(Number(document.getElementById('DoubleOut_' + i).value || 0));
+//변경된 값만 저장으로 삭제        data.dupSerial.push(Number(document.getElementById('dupSerial_' + i).value || 0));
+//변경된 값만 저장으로 삭제  });
+
+// ⭐ 여기부터 변경된 값만 저장
+elections.forEach((_, i) => {
+
+    const curr = {
+        start: document.getElementById('curr_' + i).value || 0,
+        noBalsong: document.getElementById('NoBalsong_' + i).value || 0,
+        geulJung: document.getElementById('GeulJung_' + i).value || 0,
+        giveBack: document.getElementById('GiveBack_' + i).value || 0,
+        dmg: document.getElementById('dmg_' + i).value || 0,
+        damageNos: damageData[i] || "",
+        doubleOut: document.getElementById('DoubleOut_' + i).value || 0,
+        returnKorea: document.getElementById('ReturnKorea_' + i).value || 0,
+        dupSerial: document.getElementById('dupSerial_' + i).value || 0
+    };
+
+    const orig = originalData[i] || {};
+
+    let changed = false;
+
+    for (let key in curr) {
+        if ((orig[key] ?? "") != curr[key]) {
+            changed = true;
+            break;
+        }
+    }
+
+    if (changed) {
+        data.changedIndex.push(i);
+
+        data.start[i] = curr.start;
+        data.noBalsong[i] = curr.noBalsong;
+        data.geulJung[i] = curr.geulJung;
+        data.giveBack[i] = curr.giveBack;
+        data.dmg[i] = curr.dmg;
+        data.damageNos[i] = curr.damageNos;
+        data.doubleOut[i] = curr.doubleOut;
+        data.returnKorea[i] = curr.returnKorea;
+        data.dupSerial[i] = curr.dupSerial;
+    }
+});
+// 여기까지 변경된 값만 저장
+
 
     fetch(SCRIPT_URL, {
     method: "POST",
@@ -968,8 +1096,31 @@ function loadFromGoogle() {
     .then(res => res.json())
     .then(data => {
 
+	originalData = {}; //변경된 값만 저장
+
         // 👉 핵심: 배열 그대로 처리
         data.forEach((item, i) => {
+
+	// 여기부터 변경된 값만 저장
+	originalData[i] = {
+            start: item.start || "",
+            noBalsong: item.noBalsong || "",
+            geulJung: item.geulJung || "",
+            giveBack: item.giveBack || "",
+            returnKorea: item.returnKorea || "",
+            dmg: item.dmg || "",
+            damageNos: item.damageNos || "",
+            doubleOut: item.doubleOut || "",
+            dupSerial: item.dupSerial || ""
+	};
+	// 여기까지 변경된 값만 저장
+
+
+
+
+
+
+
             document.getElementById('start_' + i).value = item.start || "";
             document.getElementById('end_' + i).value = item.end || "";
 
@@ -1682,6 +1833,275 @@ function applyLockState() {
 
     btn.disabled = true;
     btn.innerText = "확정됨";
+}
+
+
+function goAdmin() {
+
+
+    document.getElementById("mainScreen").style.display = "none";
+    document.getElementById("adminScreen").style.display = "block";
+
+    document.getElementById("topControls").style.display = "none";
+
+    loadAdminData();
+
+    loadPollingDetail();
+    
+    startAutoRefresh(); 
+}
+
+
+function goMain() {
+
+     stopAutoRefresh()
+
+    document.getElementById("mainScreen").style.display = "block";
+    document.getElementById("adminScreen").style.display = "none";
+
+document.getElementById("topControls").style.display = "block";
+
+    // ⭐ 관리자 값이면 기본값으로 강제 복구
+    if (prevArea === "관리자") {
+        prevArea = "낭성면"; // 또는 기본값
+    }
+
+    document.getElementById("sheetSelect").value = prevArea || "";
+    updatePollOptions();
+    document.getElementById("pollType").value = prevPoll || "";
+    updatePreview();
+}
+
+
+function loadAdminData() {
+
+    const driveLink = document.getElementById('driveLink').value;
+    const fileId = extractFileId(driveLink);
+
+    if (!fileId) {
+        alert("❌ 파일 링크 확인");
+        return;
+    }
+
+    fetch(`${SCRIPT_URL}?type=adminSummary&fileId=${fileId}`)
+    .then(res => res.json())
+    .then(data => {
+
+        const now = new Date();
+        const timeStr = now.toLocaleString("ko-KR");
+
+        let html = `
+        <div style="
+            margin-bottom:10px;
+            padding:10px;
+            background:#f1f5f9;
+            border-radius:8px;
+            text-align:center;
+            font-weight:800;
+        ">
+            ⏱️ ${timeStr} ✔️ 투표수를 조회했습니다.
+        </div>
+        `;
+
+        // 🔥 읍면동 반복
+        data.forEach(block => {
+
+            html += `
+            <h3 style="margin-top:20px; color:#1e40af;">
+                📍 ${block.district}
+            </h3>
+
+            <table border="1" style="width:100%; text-align:center; font-size:14px; margin-bottom:20px;">
+                <tr>
+                    <th>선거명</th>
+                    <th>선거인명부(사전거소제외)</th>
+                    <th>투표자수</th>
+                </tr>
+            `;
+
+            block.items.forEach(item => {
+                html += `
+                <tr>
+                    <td style="text-align:left;">
+                        ${item.election}
+                    </td>
+                    <td>${Number(item.j || 0).toLocaleString()}</td>
+                    <td>${Number(item.k || 0).toLocaleString()}</td>
+                </tr>
+                `;
+            });
+
+            html += `</table>`;
+        });
+
+        document.getElementById("adminTable").innerHTML = html;
+
+        loadPollingDetail();
+
+    })
+    .catch(err => {
+        alert("❌ 불러오기 실패: " + err);
+    });
+}
+
+function loadPollingDetail() {
+
+    const driveLink = document.getElementById('driveLink').value;
+    const fileId = extractFileId(driveLink);
+ 
+    if (!fileId) return;
+
+    fetch(`${SCRIPT_URL}?type=pollingDetail&fileId=${fileId}`)
+    .then(res => res.json())
+    .then(data => {
+        renderPollingDetail(data);
+    });
+}
+
+function updateRefreshInterval() {
+    stopAutoRefresh();
+    startAutoRefresh();
+}
+
+function renderPollingDetail(data) {
+
+    const colorMap = getColorMap(data);
+
+    let html = "";
+
+    data.forEach(poll => {
+
+        const district = getDistrictName(poll.name);
+        const color = colorMap[district];
+
+        html += `
+        <div style="margin-bottom:20px; border:1px solid #ddd; border-radius:10px; overflow:hidden;">
+            
+            <div style="
+                background:${color};
+                color:#fff;
+                padding:10px;
+                font-weight:900;
+            ">
+                ${poll.name}
+            </div>
+
+            <table style="width:100%; border-collapse:collapse; text-align:center;">
+                <tr style="background:#f3f4f6; font-weight:900;">
+                    <td>구분</td>
+                    <td>선거인명부(사전거소제외)</td>
+                    <td>투표자수</td>
+                    <td>입력시간</td>
+                </tr>
+        `;
+
+        poll.data.forEach(row => {
+            html += `
+            <tr>
+                <td>${row.type}</td>
+   	   <td>${formatNumber(row.val1)}</td>
+	   <td>${formatNumber(row.val2)}</td>
+                <td style="    font-size:12px;    color:${getTimeColor(row.time)};">    ${formatTime(row.time)}</td>
+            </tr>
+            `;
+        });
+
+        html += `</table></div>`;
+    });
+
+    document.getElementById("pollingDetailArea").innerHTML = html;
+}
+
+function getTimeColor(t) {
+	
+    console.log("t:", t);
+
+    const now = new Date();
+
+    // 👉 06:30 이전은 체크 안함
+    if (now.getHours() === 6 && now.getMinutes() < 30) {
+        return "#000";
+    }
+
+    // 👉 기준 마감 시간 계산
+    let baseHour = now.getHours();
+    if (now.getMinutes() < 30) baseHour -= 1;
+
+    const deadline = new Date(now);
+    deadline.setHours(baseHour, 30, 0, 0);
+
+    // 👉 입력 없음
+    if (!t) return "red";
+
+    // 🔥 핵심: 시/분만 추출
+    const d = new Date(t);
+    const h = d.getHours();
+    const m = d.getMinutes();
+
+    // 🔥 오늘 날짜로 재생성
+    const inputTime = new Date(now);
+    inputTime.setHours(h, m, 0, 0);
+
+     
+   // 🔥 18시 이후 추가 규칙 보궐선거면 여기가 20 으로 바뀌어야 될것 같음. 
+   if (now.getHours() >= 18) {
+
+       const cutoff = new Date(now);
+       cutoff.setHours(18, 0, 0, 0);
+
+       return inputTime >= cutoff ? "#000" : "red";
+   }
+
+    // 👉 비교
+    return inputTime >= deadline ? "#000" : "red";
+}
+
+
+function formatNumber(n) {
+    if (n === null || n === undefined || n === "") return "-";
+    return Number(n).toLocaleString("ko-KR");
+}
+
+function formatTime(t) {
+    if (!t) return "-";
+
+    const date = new Date(t);
+    return date.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function getDistrictName(name) {
+    if (!name) return "기타";
+
+    // "미원면제1투" → "미원면"
+    const match = name.match(/(.+?[읍면동])/);
+
+    return match ? match[1] : name;
+}
+
+function getColorMap(data) {
+
+    const colors = [
+        "#2563eb", "#16a34a", "#dc2626",
+        "#9333ea", "#ea580c", "#0891b2",
+        "#4f46e5", "#059669"
+    ];
+
+    const map = {};
+    let index = 0;
+
+    data.forEach(poll => {
+        const district = getDistrictName(poll.name);
+
+        if (!map[district]) {
+            map[district] = colors[index % colors.length];
+            index++;
+        }
+    });
+
+    return map;
 }
 
 </script>
